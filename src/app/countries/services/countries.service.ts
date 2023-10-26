@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Country, Region, SmallCountry } from '../interfaces/country.interfaces';
 
-import { Observable, map, of, tap } from 'rxjs';
+import { Observable, combineLatest, map, of, tap } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 
 
@@ -48,10 +48,49 @@ export class CountriesService {
       map( countries => countries.map( country => ({
         name: country.name.common,
         cca3: country.cca3,
-        borders:country.borders ?? [] // coalencia nula(??) evalua si es nulo regresa un arreglo vacio
-      }))),
+        borders: country.borders ?? [], // coalencia nula(??) evalua si es nulo regresa un arreglo vacio
+      })))
       //tap( response => console.log({ response } )), //tap sirve para ejecutar eventos secundarios response del servicio
       )
     }
+
+
+    //trae un observable de paises Observable<SmallCountry>
+    getCountryByAlphaCode(alphaCode: string ): Observable<SmallCountry> {
+      console.log(alphaCode);
+
+      const url = `${ this.baseUrl }/alpha/${ alphaCode }?fields=cca3,name,borders`;
+       return this.http.get<Country>(url)
+       .pipe(
+        map( country =>  ({
+          name: country.name.common,
+          cca3: country.cca3,
+          borders: country.borders ?? [],
+        }))
+       )
+      }
+
+      getCountryBordersByCodes(borders: string [] ): Observable<SmallCountry[]> {
+        //sino hay borders regresa un arreglo vacio
+         if( !borders || borders.length === 0 ) return of ([]);
+         //arreglo que tiene todos los observables
+         //arreglo que va obtener todos los paises
+
+          const countriesRequest: Observable<SmallCountry>[] = [];
+          //leer cada uno de los borders que hay
+          borders.forEach( code => {
+            const request = this.getCountryByAlphaCode( code );  // reuest tiene la informacion de este pais
+            //almacenando el request en el arreglo del countryRequest
+            //para que me traiga el listado de  observables que trae los paises
+              countriesRequest.push(request);  //insertando el request en el arreglo del countriesRequest
+            });
+
+            //combineLatest es una funcion de rx
+            //combineLatest cuando lo mande llamar el subscribe va emitir de manera simultanea todos los valores que tiene el arreglo
+            //hay que mandar el conjunto de observables que esta en el arreglo countriesRequest
+            return combineLatest (countriesRequest);
+
+      }
+
 
 }
